@@ -1,0 +1,213 @@
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  min-height: 100vh;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+button {
+  font: inherit;
+}
+
+.app-title {
+  font-family: var(--font-heading);
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.app-subtitle {
+  color: var(--text-secondary);
+  font-size: 15px;
+  max-width: 480px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Sign-in / loading / error screens — centered, full height */
+.signin-screen,
+.loading-screen,
+.error-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 100vh;
+  padding: var(--space-4);
+  text-align: center;
+}
+
+.btn-primary {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--accent-on);
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-4);
+  min-height: var(--tap-min);
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+.btn-secondary {
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--text-primary);
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+  min-height: var(--tap-min);
+  cursor: pointer;
+}
+
+.btn-text {
+  font-size: 14px;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--space-2);
+}
+
+.btn-text:hover {
+  color: var(--text-primary);
+}
+
+.error-text {
+  color: var(--status-defect-text);
+  font-size: 15px;
+  max-width: 480px;
+}
+
+/* Truck List screen */
+.truck-list-screen {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--space-4);
+}
+
+.page-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+.truck-list-columns {
+  display: none;
+}
+
+.truck-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.truck-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  text-align: left;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.truck-row:hover {
+  border-color: var(--border-strong);
+}
+
+.truck-row-number {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 17px;
+}
+
+.truck-row-date,
+.truck-row-driver {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.status-badge {
+  font-size: 13px;
+  font-weight: 600;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius);
+  white-space: nowrap;
+  justify-self: end;
+}
+
+.status-clean {
+  background: var(--status-clean-bg);
+  color: var(--status-clean-text);
+}
+
+.status-defect {
+  background: var(--status-defect-bg);
+  color: var(--status-defect-text);
+}
+
+.empty-state {
+  color: var(--text-secondary);
+}
+
+/* Desktop/tablet: show column headers above the list, since that's the
+   primary case for this app (unlike the driver app, which is mobile-first). */
+@media (min-width: 720px) {
+  .truck-list-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: var(--space-3);
+    padding: 0 var(--space-3);
+    margin-bottom: var(--space-2);
+    color: var(--text-muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+}
+
+/* Phone: stack each row's fields two-by-two instead of a cramped 4-col grid */
+@media (max-width: 719px) {
+  .truck-row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "number status"
+      "date driver";
+  }
+  .truck-row-number {
+    grid-area: number;
+  }
+  .status-badge {
+    grid-area: status;
+  }
+  .truck-row-date {
+    grid-area: date;
+  }
+  .truck-row-driver {
+    grid-area: driver;
+    text-align: right;
+  }
+}
