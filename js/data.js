@@ -11,9 +11,16 @@ const TRUCKS_FOLDER_NAME = 'Trucks';
 
 // Folder names are YYYY-MM or YYYY-MM-DD_DriverName — the fixed-width date
 // prefix means plain string sort already puts the most recent one first.
-function mostRecentByName(folders) {
-  if (folders.length === 0) return null;
-  return folders.slice().sort((a, b) => (a.name < b.name ? 1 : a.name > b.name ? -1 : 0))[0];
+function sortFoldersByNameDesc(folders) {
+  return folders.slice().sort((a, b) => (a.name < b.name ? 1 : a.name > b.name ? -1 : 0));
+}
+
+// A parsed inspection-data.json only counts as a real, certified inspection
+// if it actually has these — guards against stray/malformed test artifacts
+// left over in Drive from earlier backend testing (e.g. an empty or
+// partial JSON file that isn't a real inspection at all).
+function looksLikeRealInspection(inspectionData) {
+  return !!(inspectionData && inspectionData.date && inspectionData.driverName && inspectionData.certifiedAt);
 }
 
 async function findTrucksFolderId() {
@@ -30,23 +37,28 @@ async function findTrucksFolderId() {
   return trucksFolderId;
 }
 
-// Walks one truck folder down to its single most recent inspection and
-// returns the parsed inspection-data.json for it, or null if the truck
-// folder is empty/malformed (e.g. a stray folder with no inspections yet).
+// Walks one truck folder down to its single most recent REAL inspection,
+// skipping past any malformed/stray folder along the way (falls back to
+// the next most recent day, then the next most recent month) rather than
+// surfacing garbage just because it happened to sort first by name.
 async function loadMostRecentInspectionForTruck(truckFolderId) {
-  const monthFolders = await listChildFolders(truckFolderId);
-  const latestMonth = mostRecentByName(monthFolders);
-  if (!latestMonth) return null;
+  const monthFolders = sortFoldersByNameDesc(await listChildFolders(truckFolderId));
 
-  const dayFolders = await listChildFolders(latestMonth.id);
-  const latestDay = mostRecentByName(dayFolders);
-  if (!latestDay) return null;
+  for (const monthFolder of monthFolders) {
+    const dayFolders = sortFoldersByNameDesc(await listChildFolders(monthFolder.id));
 
-  const dataFile = await findFileInFolder(latestDay.id, 'inspection-data.json');
-  if (!dataFile) return null;
+    for (const dayFolder of dayFolders) {
+      const dataFile = await findFileInFolder(dayFolder.id, 'inspection-data.json');
+      if (!dataFile) continue;
 
-  const inspectionData = await fetchFileJson(dataFile.id);
-  return { inspectionData, folderId: latestDay.id };
+      const inspectionData = await fetchFileJson(dataFile.id);
+      if (!looksLikeRealInspection(inspectionData)) continue;
+
+      return { inspectionData, folderId: dayFolder.id };
+    }
+  }
+
+  return null;
 }
 
 // Fetches every truck's most recent inspection and returns a flat, sorted
@@ -117,6 +129,8 @@ async function loadInspectionHistoryForTruck(truckNumber) {
       if (!dataFile) continue;
 
       const inspectionData = await fetchFileJson(dataFile.id);
+      if (!looksLikeRealInspection(inspectionData)) continue;
+
       inspections.push({
         date: inspectionData.date,
         driverName: inspectionData.driverName,
