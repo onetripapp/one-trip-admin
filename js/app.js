@@ -4,9 +4,17 @@
 
 const root = document.getElementById('app');
 
-let currentScreen = 'signin'; // 'signin' | 'loading' | 'truckList' | 'error'
+// 'signin' | 'loading' | 'truckList' | 'inspectionHistory' | 'error'
+let currentScreen = 'signin';
 let truckSummaries = [];
+let selectedTruckNumber = null;
+let inspectionHistory = [];
 let loadError = null;
+
+// Whichever load is currently in flight, so the error screen's Retry
+// button re-runs the thing that actually failed instead of always
+// bouncing back to the truck list.
+let pendingRetry = null;
 
 function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
@@ -28,6 +36,7 @@ function render() {
   else if (currentScreen === 'loading') root.appendChild(renderLoading());
   else if (currentScreen === 'error') root.appendChild(renderError());
   else if (currentScreen === 'truckList') root.appendChild(renderTruckList());
+  else if (currentScreen === 'inspectionHistory') root.appendChild(renderInspectionHistory());
 }
 
 function renderSignIn() {
@@ -83,24 +92,88 @@ function renderTruckList() {
   return el('div', { class: 'truck-list-screen' }, [header, columnHeaders, el('div', { class: 'truck-list' }, rows)]);
 }
 
+function renderInspectionHistory() {
+  const header = el('header', { class: 'page-header' }, [
+    el('div', { class: 'header-titles' }, [
+      el('button', { class: 'btn-text back-link', onClick: handleBackToTruckList }, '← Trucks'),
+      el('h1', { class: 'app-title' }, `Truck ${selectedTruckNumber}`),
+    ]),
+    el('button', { class: 'btn-text', onClick: handleSignOut }, 'Sign out'),
+  ]);
+
+  if (inspectionHistory.length === 0) {
+    return el('div', { class: 'truck-list-screen' }, [header, el('p', { class: 'empty-state' }, 'No inspections found for this truck.')]);
+  }
+
+  const columnHeaders = el('div', { class: 'history-columns' }, [
+    el('span', {}, 'Date'),
+    el('span', {}, 'Driver'),
+    el('span', {}, 'Certified'),
+    el('span', {}, 'Checked'),
+    el('span', {}, 'Status'),
+  ]);
+
+  const rows = inspectionHistory.map((inspection) => {
+    const isClean = inspection.failedCount === 0;
+    return el('button', { class: 'history-row', onClick: () => handleSelectInspection(inspection) }, [
+      el('span', { class: 'history-row-date' }, formatDate(inspection.date)),
+      el('span', { class: 'history-row-driver' }, inspection.driverName),
+      el('span', { class: 'history-row-certified' }, formatCertifiedAt(inspection.certifiedAt)),
+      el('span', { class: 'history-row-checked' }, `${inspection.doneCount} / ${inspection.totalCount}`),
+      el(
+        'span',
+        { class: `status-badge ${isClean ? 'status-clean' : 'status-defect'}` },
+        isClean ? 'Clean' : `${inspection.failedCount} Defect${inspection.failedCount === 1 ? '' : 's'}`
+      ),
+    ]);
+  });
+
+  return el('div', { class: 'truck-list-screen' }, [header, columnHeaders, el('div', { class: 'truck-list' }, rows)]);
+}
+
 function formatDate(dateStr) {
   if (!dateStr) return '—';
   const [y, m, d] = dateStr.split('-');
   return `${m}/${d}/${y}`;
 }
 
-async function loadTruckList() {
+function formatCertifiedAt(isoString) {
+  if (!isoString) return '—';
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleString(undefined, {
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+// Runs an async load, showing the loading screen while it's in flight and
+// the error screen (with a working Retry) if it throws. `onSuccess` only
+// runs when the load actually succeeds, and is responsible for setting
+// `currentScreen` to wherever the data should land.
+async function runLoad(loadFn, onSuccess) {
+  pendingRetry = () => runLoad(loadFn, onSuccess);
   currentScreen = 'loading';
   render();
   try {
-    truckSummaries = await loadTruckListSummaries();
-    currentScreen = 'truckList';
+    const result = await loadFn();
+    onSuccess(result);
   } catch (err) {
-    console.error('Failed to load truck list', err);
+    console.error('Load failed', err);
     loadError = err.message || String(err);
     currentScreen = 'error';
   }
   render();
+}
+
+function loadTruckList() {
+  runLoad(loadTruckListSummaries, (result) => {
+    truckSummaries = result;
+    currentScreen = 'truckList';
+  });
 }
 
 function handleSignIn() {
@@ -110,17 +183,35 @@ function handleSignIn() {
 function handleSignOut() {
   signOut();
   truckSummaries = [];
+  selectedTruckNumber = null;
+  inspectionHistory = [];
   currentScreen = 'signin';
   render();
 }
 
 function handleRetry() {
-  loadTruckList();
+  if (pendingRetry) pendingRetry();
 }
 
 function handleSelectTruck(truckNumber) {
-  // Screen 2 (Inspection History) isn't built yet.
-  console.log('Selected truck', truckNumber);
+  selectedTruckNumber = truckNumber;
+  runLoad(
+    () => loadInspectionHistoryForTruck(truckNumber),
+    (result) => {
+      inspectionHistory = result;
+      currentScreen = 'inspectionHistory';
+    }
+  );
+}
+
+function handleBackToTruckList() {
+  currentScreen = 'truckList';
+  render();
+}
+
+function handleSelectInspection(inspection) {
+  // Screen 3 (Inspection Detail) isn't built yet.
+  console.log('Selected inspection', inspection);
 }
 
 function showAuthError(message) {

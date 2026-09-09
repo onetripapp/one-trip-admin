@@ -104,9 +104,20 @@ button {
 
 .page-header {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
   margin-bottom: var(--space-4);
+}
+
+.header-titles {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.back-link {
+  padding: 0;
 }
 
 .truck-list-columns {
@@ -173,12 +184,65 @@ button {
   color: var(--text-secondary);
 }
 
+/* Inspection History screen — same row/card pattern as the Truck List, one
+   more column (Certified timestamp) since this list is scoped to one truck
+   and doesn't need to repeat the truck number on every row. */
+.history-columns {
+  display: none;
+}
+
+.history-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.4fr 0.8fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  text-align: left;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.history-row:hover {
+  border-color: var(--border-strong);
+}
+
+.history-row-date {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.history-row-driver,
+.history-row-certified,
+.history-row-checked {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
 /* Desktop/tablet: show column headers above the list, since that's the
    primary case for this app (unlike the driver app, which is mobile-first). */
 @media (min-width: 720px) {
   .truck-list-columns {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr auto;
+    gap: var(--space-3);
+    padding: 0 var(--space-3);
+    margin-bottom: var(--space-2);
+    color: var(--text-muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+}
+
+@media (min-width: 720px) {
+  .history-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1.4fr 0.8fr auto;
     gap: var(--space-3);
     padding: 0 var(--space-3);
     margin-bottom: var(--space-2);
@@ -209,5 +273,27 @@ button {
   .truck-row-driver {
     grid-area: driver;
     text-align: right;
+  }
+
+  .history-row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "date status"
+      "driver checked"
+      "certified certified";
+  }
+  .history-row-date {
+    grid-area: date;
+  }
+  .history-row-driver {
+    grid-area: driver;
+  }
+  .history-row-checked {
+    grid-area: checked;
+    text-align: right;
+  }
+  .history-row-certified {
+    grid-area: certified;
+    font-size: 12px;
   }
 }
