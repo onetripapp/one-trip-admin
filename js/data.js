@@ -229,3 +229,63 @@ async function loadInspectionDetail(folderId) {
 
   return { inspectionData, folderId, fileIdByName };
 }
+
+// Baseline reference photos live as static files in the DRIVER app's own
+// public repo — NOT in Drive at all (the original spec assumed Drive; that
+// was confirmed wrong before building this). Confirmed directly against
+// onetrip-driver/js/baselineReference.js and assets/baseline-photos/
+// <truck>/manifest.json: one wide-angle "gold standard" photo per ZONE
+// (not per station — a zone with several stations shares a single
+// baseline shot), named "<truck>-zone<N>-<slug>.jpg" and keyed by zone
+// number in manifest.json. Fetched via GitHub's raw-content CDN since the
+// repo is public — no auth, no Drive involvement for these specifically,
+// and no new exposure (the photos are already public on GitHub regardless
+// of what this app does).
+//
+// Cross-repo coupling risk, called out explicitly rather than left
+// implicit: if onetrip-driver ever renames/moves assets/baseline-photos/
+// or changes its manifest.json shape, this breaks silently until someone
+// updates both repos together. There is no way to avoid that risk
+// entirely without duplicating driver-repo logic here in a way that could
+// ALSO drift — fetching the manifest at runtime (rather than hardcoding a
+// copy of its contents) at least means a baseline-photo *update* on the
+// driver side shows up here automatically, with no redeploy needed.
+const BASELINE_PHOTOS_REPO_RAW_BASE = 'https://raw.githubusercontent.com/onetripapp/onetrip-driver/main/assets/baseline-photos';
+
+// MUST MATCH onetrip-driver/js/data.js's own PHASE1_ZONES/PHASE2_ZONES
+// zoneName strings exactly, and the zone numbering onetrip-driver/js/
+// baselineReference.js + each truck's manifest.json use. The baseline
+// system only ever covers these 9 exterior/engine-bay zones by design
+// (confirmed in that file's own comment) — Phase 3's "In-Cab" zoneName has
+// no zone number and is deliberately absent here; callers should treat
+// "In-Cab" as categorically excluded from baseline comparison, not as a
+// "baseline missing" case.
+const ZONE_NAME_TO_NUMBER = {
+  'Driver-Side Engine Bay': 1,
+  'Passenger-Side Engine Bay': 2,
+  'Front of Truck': 3,
+  'Back Half Truck / Front Trailer, Driver Side': 4,
+  'Rear of Truck (Fifth Wheel / Truck Rear Lights)': 5,
+  'Passenger Side': 6,
+  'Driver-Side Rear of Trailer': 7,
+  'Absolute Rear of Trailer': 8,
+  'Passenger-Side Rear of Trailer': 9,
+};
+
+// Returns null when this truck simply has no baseline set at all yet
+// (manifest.json 404s — true for every truck except 826016 today). Callers
+// should treat that the same as "no baseline for any zone" — a real,
+// expected state, not an error. Any other fetch failure (network error,
+// non-404 failure) propagates normally so runLoad()'s existing error
+// screen handles it.
+async function fetchBaselineManifest(truckNumber) {
+  const url = `${BASELINE_PHOTOS_REPO_RAW_BASE}/${encodeURIComponent(truckNumber)}/manifest.json`;
+  const res = await fetch(url);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Could not load the baseline photo manifest for truck ${truckNumber} (${res.status}).`);
+  return res.json();
+}
+
+function baselineImageUrl(truckNumber, filename) {
+  return `${BASELINE_PHOTOS_REPO_RAW_BASE}/${encodeURIComponent(truckNumber)}/${encodeURIComponent(filename)}`;
+}

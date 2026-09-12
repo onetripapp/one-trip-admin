@@ -4,13 +4,14 @@
 
 const root = document.getElementById('app');
 
-// 'signin' | 'loading' | 'truckList' | 'inspectionHistory' | 'inspectionDetail' | 'error'
+// 'signin' | 'loading' | 'truckList' | 'inspectionHistory' | 'inspectionDetail' | 'baselineComparison' | 'error'
 let currentScreen = 'signin';
 let truckSummaries = [];
 let selectedTruckNumber = null;
 let inspectionHistory = [];
 let selectedInspection = null;
 let inspectionDetailData = null; // { inspectionData, folderId, fileIdByName } — see loadInspectionDetail()
+let baselineData = null; // { manifest, truckNumber } — manifest is null when this truck has no baseline set at all
 let loadError = null;
 
 // Whichever load is currently in flight, so the error screen's Retry
@@ -40,6 +41,7 @@ function render() {
   else if (currentScreen === 'truckList') root.appendChild(renderTruckList());
   else if (currentScreen === 'inspectionHistory') root.appendChild(renderInspectionHistory());
   else if (currentScreen === 'inspectionDetail') root.appendChild(renderInspectionDetail());
+  else if (currentScreen === 'baselineComparison') root.appendChild(renderBaselineComparison());
 }
 
 function renderSignIn() {
@@ -168,9 +170,12 @@ function renderInspectionDetail() {
     ]),
   ]);
 
-  const summaryLinkBtn = el('button', { class: 'btn-secondary', onClick: handleOpenSummaryFile }, 'View Raw Summary (.txt)');
+  const actionsRow = el('div', { class: 'detail-actions-row' }, [
+    el('button', { class: 'btn-secondary', onClick: handleOpenSummaryFile }, 'View Raw Summary (.txt)'),
+    el('button', { class: 'btn-secondary', onClick: handleCompareToBaseline }, 'Compare to Baseline'),
+  ]);
 
-  const sections = [header, meta, statsRow, summaryLinkBtn];
+  const sections = [header, meta, statsRow, actionsRow];
 
   // Flagged items surface at the very top, same as inspection-summary.txt's
   // own defect list — nobody should have to scroll a 20+ station breakdown
@@ -288,6 +293,104 @@ function renderStationPhoto(fileIdByName, photoFilename) {
   return wrap;
 }
 
+// Screen 4: Baseline Comparison. Baseline photos are zone-level (one wide
+// shot per zone, not per station — see fetchBaselineManifest's own comment
+// in data.js), so each zone section shows its one baseline photo ONCE,
+// alongside every station photo from that zone stacked next to it — not a
+// baseline repeated per station, which would misrepresent a single
+// zone-wide shot as if it were several different per-station baselines.
+function renderBaselineComparison() {
+  const { inspectionData, fileIdByName } = inspectionDetailData;
+  const { manifest, truckNumber } = baselineData;
+
+  const header = el('header', { class: 'page-header' }, [
+    el('div', { class: 'header-titles' }, [
+      el('button', { class: 'btn-text back-link', onClick: handleBackToDetailFromBaseline }, `← ${formatDate(inspectionData.date)}`),
+      el('h1', { class: 'app-title' }, 'Baseline Comparison'),
+    ]),
+    el('button', { class: 'btn-text', onClick: handleSignOut }, 'Sign out'),
+  ]);
+
+  const meta = el(
+    'p',
+    { class: 'app-subtitle' },
+    `Truck ${truckNumber} — ${inspectionData.driverName} — This inspection: ${formatDate(inspectionData.date)}`
+  );
+
+  const sections = [header, meta];
+
+  if (!manifest) {
+    sections.push(
+      el(
+        'p',
+        { class: 'empty-state' },
+        `No baseline photo set on file for truck ${truckNumber} yet — showing this inspection's photos with nothing to compare them against.`
+      )
+    );
+  }
+
+  // Phase 3's "In-Cab" stations were never part of the baseline system to
+  // begin with (see ZONE_NAME_TO_NUMBER's comment in data.js) — that's not
+  // a "missing baseline" case the way a truck with no manifest is, so it's
+  // excluded entirely here rather than showing a permanent, never-
+  // resolvable "no baseline" note for stations that were never going to
+  // have one.
+  const zoneGroups = groupStationsByZone(inspectionData.stations).filter((g) => g.zoneName !== 'In-Cab');
+
+  let anyZoneShown = false;
+  for (const group of zoneGroups) {
+    const stationsWithPhotos = group.stations.filter((s) => s.photoCaptured && s.photoFilename);
+    if (stationsWithPhotos.length === 0) continue;
+    anyZoneShown = true;
+    sections.push(renderBaselineZoneSection(group, stationsWithPhotos, truckNumber, manifest, fileIdByName, inspectionData));
+  }
+
+  if (!anyZoneShown) {
+    sections.push(el('p', { class: 'empty-state' }, 'No exterior station photos to compare for this inspection.'));
+  }
+
+  return el('div', { class: 'truck-list-screen' }, sections);
+}
+
+function renderBaselineZoneSection(group, stationsWithPhotos, truckNumber, manifest, fileIdByName, inspectionData) {
+  const section = el('section', { class: 'zone-section' });
+  section.appendChild(el('h2', { class: 'zone-heading' }, group.zoneName));
+
+  const grid = el('div', { class: 'baseline-zone-grid' });
+
+  const zoneNumber = ZONE_NAME_TO_NUMBER[group.zoneName];
+  const baselineFilename = zoneNumber && manifest && manifest.zones ? manifest.zones[String(zoneNumber)] : null;
+
+  const baselineCol = el('div', { class: 'baseline-photo-col' });
+  baselineCol.appendChild(el('div', { class: 'baseline-photo-label' }, 'Baseline'));
+  if (baselineFilename) {
+    baselineCol.appendChild(
+      el('img', {
+        class: 'station-photo',
+        src: baselineImageUrl(truckNumber, baselineFilename),
+        alt: `${group.zoneName} baseline`,
+      })
+    );
+  } else {
+    baselineCol.appendChild(el('div', { class: 'station-photo-unavailable' }, 'No baseline photo for this zone'));
+  }
+  grid.appendChild(baselineCol);
+
+  const inspectionCol = el('div', { class: 'inspection-photo-col' });
+  for (const station of stationsWithPhotos) {
+    const photoBlock = el('div', { class: 'baseline-inspection-photo' });
+    photoBlock.appendChild(
+      el('div', { class: 'baseline-photo-label' }, `Station ${station.id} — This Inspection (${formatDate(inspectionData.date)})`)
+    );
+    photoBlock.appendChild(renderStationPhoto(fileIdByName, station.photoFilename));
+    inspectionCol.appendChild(photoBlock);
+  }
+  grid.appendChild(inspectionCol);
+
+  section.appendChild(grid);
+  return section;
+}
+
 // Opens inspection-summary.txt in a new tab. The window has to open
 // synchronously, right here in the click handler — opening it only after
 // the file has been fetched (i.e. after an await) is exactly the pattern
@@ -387,6 +490,7 @@ function handleSignOut() {
   inspectionHistory = [];
   selectedInspection = null;
   inspectionDetailData = null;
+  baselineData = null;
   currentScreen = 'signin';
   render();
 }
@@ -425,6 +529,21 @@ function handleSelectInspection(inspection) {
       currentScreen = 'inspectionDetail';
     }
   );
+}
+
+function handleCompareToBaseline() {
+  runLoad(
+    () => fetchBaselineManifest(selectedTruckNumber),
+    (manifest) => {
+      baselineData = { manifest, truckNumber: selectedTruckNumber };
+      currentScreen = 'baselineComparison';
+    }
+  );
+}
+
+function handleBackToDetailFromBaseline() {
+  currentScreen = 'inspectionDetail';
+  render();
 }
 
 function showAuthError(message) {

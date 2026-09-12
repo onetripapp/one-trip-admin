@@ -475,3 +475,57 @@ button {
   color: var(--text-muted);
   font-size: 13px;
 }
+
+/* Inspection Detail screen's action-button row (View Raw Summary, Compare
+   to Baseline) */
+.detail-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+}
+
+/* Baseline Comparison screen — one baseline photo per zone (never per
+   station; see fetchBaselineManifest's own comment in data.js) next to
+   that zone's own station photos, stacked. Actual photo sizing/failure
+   styling reuses .station-photo / .station-photo-unavailable directly
+   (see renderBaselineZoneSection in app.js) rather than duplicating it. */
+.baseline-zone-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.baseline-photo-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--space-1);
+}
+
+.inspection-photo-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Desktop/tablet: baseline and this inspection's photos sit side by side,
+   same breakpoint the rest of this app already uses for wider layouts. */
+@media (min-width: 720px) {
+  .baseline-zone-grid {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .baseline-photo-col {
+    flex: 1;
+    position: sticky;
+    top: var(--space-3);
+  }
+
+  .inspection-photo-col {
+    flex: 1;
+  }
+}
