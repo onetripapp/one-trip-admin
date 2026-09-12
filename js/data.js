@@ -38,11 +38,32 @@ function looksLikeRealInspection(inspectionData) {
   return !!(inspectionData && inspectionData.date && inspectionData.driverName && inspectionData.certifiedAt);
 }
 
+// Thrown specifically when the signed-in Google account can't see the
+// Trucks folder at all — the one, well-understood case this app can
+// confidently call "you don't have access" rather than "something broke."
+// Sign-in itself (Google Identity Services' token flow) succeeds for ANY
+// real Google account regardless of Drive permissions — it only proves
+// the account is real and agreed to the drive.readonly scope, not that it
+// can see any particular file. Drive's own files.list query doesn't throw
+// a 403 for "you can't see this" either; it just returns zero results,
+// indistinguishable at the HTTP level from "this genuinely doesn't
+// exist." findTrucksFolderId() below is the one place that ambiguity
+// collapses to a single, confident meaning: this is the very first Drive
+// call made right after sign-in, searching for a folder that is known to
+// exist (its ID is hardcoded elsewhere in this same file) — so an empty
+// result here specifically means this account lacks view access, not a
+// typo or a moved folder. A NoDriveAccessError is how that specific
+// finding gets routed to its own screen (see runLoad/renderNoAccess in
+// app.js) instead of the generic error screen used for everything else
+// (network failures, a since-deleted specific truck's folder, malformed
+// JSON, etc.) — those genuinely are just "something went wrong."
+class NoDriveAccessError extends Error {}
+
 async function findTrucksFolderId() {
   const trucksFolderId = await findFolder(TRUCKS_FOLDER_NAME, UPLOAD_ROOT_FOLDER_ID);
   if (!trucksFolderId) {
-    throw new Error(
-      `Could not find the "${TRUCKS_FOLDER_NAME}" folder inside the OneTrip Uploads root — check that this Google account has been shared view access to it (folder ID ${UPLOAD_ROOT_FOLDER_ID}).`
+    throw new NoDriveAccessError(
+      `Could not find the "${TRUCKS_FOLDER_NAME}" folder inside the OneTrip Uploads root — this Google account likely doesn't have view access to it (folder ID ${UPLOAD_ROOT_FOLDER_ID}).`
     );
   }
   return trucksFolderId;

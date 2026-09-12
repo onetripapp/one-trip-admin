@@ -4,7 +4,7 @@
 
 const root = document.getElementById('app');
 
-// 'signin' | 'loading' | 'truckList' | 'inspectionHistory' | 'inspectionDetail' | 'baselineComparison' | 'error'
+// 'signin' | 'loading' | 'truckList' | 'inspectionHistory' | 'inspectionDetail' | 'baselineComparison' | 'noAccess' | 'error'
 let currentScreen = 'signin';
 let truckSummaries = [];
 let selectedTruckNumber = null;
@@ -42,6 +42,7 @@ function render() {
   else if (currentScreen === 'inspectionHistory') root.appendChild(renderInspectionHistory());
   else if (currentScreen === 'inspectionDetail') root.appendChild(renderInspectionDetail());
   else if (currentScreen === 'baselineComparison') root.appendChild(renderBaselineComparison());
+  else if (currentScreen === 'noAccess') root.appendChild(renderNoAccess());
 }
 
 function renderSignIn() {
@@ -60,6 +61,25 @@ function renderError() {
   return el('div', { class: 'error-screen' }, [
     el('p', { class: 'error-text' }, loadError || 'Something went wrong.'),
     el('button', { class: 'btn-secondary', onClick: handleRetry }, 'Retry'),
+  ]);
+}
+
+// A known, specific state (see NoDriveAccessError's own comment in
+// data.js) — not a generic error, so it gets its own screen rather than
+// routing through renderError(): the same neutral app-title/app-subtitle
+// styling the sign-in screen itself uses, not the red error-text tone,
+// since nothing is actually broken here. "Retry" would be misleading (the
+// same account will just fail the same way again) — the one useful action
+// is switching accounts, so that's what's offered instead.
+function renderNoAccess() {
+  return el('div', { class: 'error-screen' }, [
+    el('h1', { class: 'app-title' }, 'No Access Yet'),
+    el(
+      'p',
+      { class: 'app-subtitle' },
+      "You're signed in, but this Google account doesn't have access to OneTrip's Drive data yet. Contact Dan to get view access to the shared folder."
+    ),
+    el('button', { class: 'btn-primary', onClick: handleSignOut }, 'Sign Out & Try a Different Account'),
   ]);
 }
 
@@ -466,8 +486,18 @@ async function runLoad(loadFn, onSuccess) {
     onSuccess(result);
   } catch (err) {
     console.error('Load failed', err);
-    loadError = err.message || String(err);
-    currentScreen = 'error';
+    // NoDriveAccessError is the one failure this app can confidently
+    // explain in plain language (see its own comment in data.js) — every
+    // other failure (network errors, a since-deleted truck folder,
+    // malformed JSON, Drive being temporarily down) stays on the existing
+    // generic error screen with Retry, rather than guessing at a more
+    // specific message than the code can actually back up.
+    if (err instanceof NoDriveAccessError) {
+      currentScreen = 'noAccess';
+    } else {
+      loadError = err.message || String(err);
+      currentScreen = 'error';
+    }
   }
   render();
 }
