@@ -109,3 +109,10 @@ async function fetchFileJson(fileId) {
   const text = await fetchFileText(fileId);
   return JSON.parse(text);
 }
+
+// Same `alt=media` endpoint as fetchFileText, just read as bytes instead of
+// text — used for station photos on the Inspection Detail screen.
+async function fetchFileBlob(fileId) {
+  const res = await driveFetch(`/files/${fileId}`, { alt: 'media' });
+  return res.blob();
+}

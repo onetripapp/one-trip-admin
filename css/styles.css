@@ -297,3 +297,181 @@ button {
     font-size: 12px;
   }
 }
+
+/* Inspection Detail screen */
+
+.detail-stats-row {
+  display: flex;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  margin: var(--space-4) 0;
+}
+
+.detail-stat {
+  flex: 1;
+  background: var(--bg-surface);
+  padding: var(--space-3);
+  text-align: center;
+}
+
+.detail-stat-value {
+  display: block;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 22px;
+}
+
+.detail-stat-value-defect {
+  color: var(--status-defect-text);
+}
+
+.detail-stat-label {
+  display: block;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: var(--space-1);
+}
+
+.detail-clean-banner {
+  color: var(--status-clean-text);
+  background: var(--status-clean-bg);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  font-weight: 600;
+  margin: var(--space-4) 0;
+}
+
+/* Failed-items summary — same information as inspection-summary.txt's own
+   defect list, surfaced at the top of the page instead of at the bottom of
+   a 20+ station scroll. */
+.fail-summary {
+  background: var(--status-defect-bg);
+  border: 1px solid var(--status-defect-text);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  margin: var(--space-4) 0;
+}
+
+.fail-summary-title {
+  font-family: var(--font-heading);
+  font-size: 17px;
+  color: var(--status-defect-text);
+  margin: 0 0 var(--space-3);
+}
+
+.fail-summary-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.fail-summary-row {
+  background: var(--bg-surface);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+}
+
+.fail-summary-station {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+
+.fail-summary-label {
+  display: block;
+  font-size: 14px;
+}
+
+.zone-section {
+  margin-top: var(--space-5);
+}
+
+.zone-heading {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 var(--space-3);
+}
+
+.station-detail-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.station-detail-label {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: var(--space-3);
+}
+
+.station-detail-subitems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.subitem-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  background: var(--bg-surface-raised);
+}
+
+.subitem-detail-label {
+  font-size: 14px;
+}
+
+/* Deliberately more than just a colored badge: a fail needs to read at a
+   glance while scanning past a whole station's worth of rows, not just on
+   close inspection of one small pill. */
+.subitem-detail-fail {
+  background: var(--status-defect-bg);
+  border-left: 3px solid var(--status-defect-text);
+}
+
+.status-na {
+  background: var(--bg-surface-raised);
+  color: var(--text-muted);
+}
+
+.station-photo-wrap {
+  margin-bottom: var(--space-3);
+}
+
+.station-photo {
+  display: block;
+  width: 100%;
+  max-height: 360px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+}
+
+.station-photo-unavailable {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 80px;
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-size: 13px;
+}

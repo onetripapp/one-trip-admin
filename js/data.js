@@ -162,3 +162,70 @@ async function loadInspectionHistoryForTruck(truckNumber) {
 
   return inspections;
 }
+
+// inspection-data.json's `stations` object is keyed by station ID ("1a",
+// "1-door", "10", "11", ...) — but plain object/JSON key order can NOT be
+// trusted to reflect the real walk order: JS enumerates any key that looks
+// like a plain integer ("10", "11", "12") before any non-integer string key
+// ("1a", "1-door"), regardless of insertion order. Left uncorrected, Phase
+// 3's stations 10/11/12 would render before Phase 1 even starts. Parsing
+// each ID's own leading number (matching this app's own "3b" / "11-air-
+// build-rate" station-ID convention — see onetrip-driver/js/data.js) and
+// sorting on [number, suffix] sidesteps that entirely, without needing to
+// duplicate the driver app's actual zone/station table over here.
+function stationSortKey(stationId) {
+  const match = /^(\d+)(.*)$/.exec(stationId);
+  if (!match) return [Infinity, stationId];
+  return [parseInt(match[1], 10), match[2]];
+}
+
+function sortedStationEntries(stationsObj) {
+  return Object.entries(stationsObj).sort((a, b) => {
+    const [aNum, aSuffix] = stationSortKey(a[0]);
+    const [bNum, bSuffix] = stationSortKey(b[0]);
+    if (aNum !== bNum) return aNum - bNum;
+    return aSuffix < bSuffix ? -1 : aSuffix > bSuffix ? 1 : 0;
+  });
+}
+
+// Groups stations into zones in true walk order, using each station's own
+// `zoneName` field (already in the JSON) to detect where one zone's run of
+// stations ends and the next begins — no separate zone-order table needed.
+function groupStationsByZone(stationsObj) {
+  const entries = sortedStationEntries(stationsObj || {});
+  const groups = [];
+  let current = null;
+  for (const [stationId, station] of entries) {
+    if (!current || current.zoneName !== station.zoneName) {
+      current = { zoneName: station.zoneName, stations: [] };
+      groups.push(current);
+    }
+    current.stations.push({ id: stationId, ...station });
+  }
+  return groups;
+}
+
+// Fetches one specific inspection's full detail record — the data Screen 2
+// doesn't carry (per-station zone/subitem breakdown, plus every filename
+// actually sitting in that inspection's Drive folder, needed for the
+// station photos). `listFilesInFolder` was already built for exactly this
+// second part (see its own comment in driveApi.js) — one call up front,
+// then a plain name lookup per station, instead of a separate Drive query
+// per photo.
+async function loadInspectionDetail(folderId) {
+  const dataFile = await findFileInFolder(folderId, 'inspection-data.json');
+  if (!dataFile) {
+    throw new Error("inspection-data.json was not found in this inspection's folder — the record may be incomplete.");
+  }
+
+  const inspectionData = await fetchFileJson(dataFile.id);
+  if (!looksLikeRealInspection(inspectionData)) {
+    throw new Error('This inspection record looks incomplete or corrupted (missing date, driver, or certification info).');
+  }
+
+  const folderFiles = await listFilesInFolder(folderId);
+  const fileIdByName = {};
+  for (const f of folderFiles) fileIdByName[f.name] = f.id;
+
+  return { inspectionData, folderId, fileIdByName };
+}
