@@ -4,11 +4,12 @@
 
 const root = document.getElementById('app');
 
-// 'signin' | 'loading' | 'truckList' | 'inspectionHistory' | 'error'
+// 'signin' | 'loading' | 'truckList' | 'inspectionHistory' | 'inspectionDetail' | 'error'
 let currentScreen = 'signin';
 let truckSummaries = [];
 let selectedTruckNumber = null;
 let inspectionHistory = [];
+let selectedInspection = null;
 let loadError = null;
 
 // Whichever load is currently in flight, so the error screen's Retry
@@ -37,6 +38,7 @@ function render() {
   else if (currentScreen === 'error') root.appendChild(renderError());
   else if (currentScreen === 'truckList') root.appendChild(renderTruckList());
   else if (currentScreen === 'inspectionHistory') root.appendChild(renderInspectionHistory());
+  else if (currentScreen === 'inspectionDetail') root.appendChild(renderInspectionDetail());
 }
 
 function renderSignIn() {
@@ -131,6 +133,28 @@ function renderInspectionHistory() {
   return el('div', { class: 'truck-list-screen' }, [header, columnHeaders, el('div', { class: 'truck-list' }, rows)]);
 }
 
+// Screen 3 (Inspection Detail) itself isn't built yet — this just confirms
+// the tap-through actually landed on the right record (real driver/date/
+// certified-at pulled from the selected row, not a generic message), and
+// gives a visible destination instead of a silent no-op. selectedInspection
+// already carries folderId, so Screen 3 has what it needs to load the rest
+// of that inspection folder's contents (photos, per-station data) later.
+function renderInspectionDetail() {
+  const header = el('header', { class: 'page-header' }, [
+    el('div', { class: 'header-titles' }, [
+      el('button', { class: 'btn-text back-link', onClick: handleBackToHistory }, `← Truck ${selectedTruckNumber}`),
+      el('h1', { class: 'app-title' }, formatDate(selectedInspection.date)),
+    ]),
+    el('button', { class: 'btn-text', onClick: handleSignOut }, 'Sign out'),
+  ]);
+
+  return el('div', { class: 'truck-list-screen' }, [
+    header,
+    el('p', { class: 'app-subtitle' }, `${selectedInspection.driverName} — certified ${formatCertifiedAt(selectedInspection.certifiedAt)}`),
+    el('p', { class: 'empty-state' }, 'Inspection Detail View is coming soon — this will show the full zone/station breakdown, flagged items, and photos for this inspection.'),
+  ]);
+}
+
 function formatDate(dateStr) {
   if (!dateStr) return '—';
   const [y, m, d] = dateStr.split('-');
@@ -185,6 +209,7 @@ function handleSignOut() {
   truckSummaries = [];
   selectedTruckNumber = null;
   inspectionHistory = [];
+  selectedInspection = null;
   currentScreen = 'signin';
   render();
 }
@@ -209,9 +234,17 @@ function handleBackToTruckList() {
   render();
 }
 
+function handleBackToHistory() {
+  currentScreen = 'inspectionHistory';
+  render();
+}
+
 function handleSelectInspection(inspection) {
-  // Screen 3 (Inspection Detail) isn't built yet.
-  console.log('Selected inspection', inspection);
+  // Screen 3 (Inspection Detail) itself isn't built yet — see
+  // renderInspectionDetail()'s placeholder above.
+  selectedInspection = inspection;
+  currentScreen = 'inspectionDetail';
+  render();
 }
 
 function showAuthError(message) {
