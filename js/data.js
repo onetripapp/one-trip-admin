@@ -1,12 +1,27 @@
 // OneTrip Admin — builds screen data by walking the Drive folder tree the
 // driver app writes (see onetrip-drive-function/index.js):
-//   "OneTrip Uploads" / "Trucks" / <TruckNumber> / <YYYY-MM> / <YYYY-MM-DD>_<DriverName> / inspection-data.json
+//   <root> / "Trucks" / <TruckNumber> / <YYYY-MM> / <YYYY-MM-DD>_<DriverName> / inspection-data.json
 //
 // inspection-data.json field names (confirmed against onetrip-driver/js/
 // state.js's buildInspectionExport, not guessed): truckNumber, driverName,
 // date, certifiedAt, summary: { done, total }, failedItems: [...], stations.
-
-const UPLOAD_ROOT_FOLDER_NAME = 'OneTrip Uploads';
+//
+// The root is a literal folder ID, not a name lookup, and it must stay in
+// sync with UPLOAD_ROOT_FOLDER_ID in onetrip-drive-function/index.js — this
+// dashboard only ever reads what the backend writes. This is the backend's
+// second root: it narrowed its own Drive OAuth scope to `drive.file`, which
+// can only see folders it created itself, so it created a fresh root rather
+// than reusing the old one a human had made by hand. The old root (still
+// named "OneTrip Uploads", same as this one was before this change) still
+// exists in Drive with all of Dan's pre-2026-09-11 history — untouched, but
+// deliberately not read by this app anymore. That's a data continuity
+// tradeoff made on purpose (beta data only, not worth a migration), not an
+// oversight — a human can still open it directly in Drive if ever needed.
+// Note the name collision this creates: a Drive account with view access
+// to both roots would see two folders both named "OneTrip Uploads" — this
+// hardcoded ID is exactly what keeps that ambiguity from ever mattering
+// here, so don't revert to a by-name lookup without re-solving that.
+const UPLOAD_ROOT_FOLDER_ID = '1bYVmVsOJU7Rb12akZwSQlEk-YZyFcpfV';
 const TRUCKS_FOLDER_NAME = 'Trucks';
 
 // Folder names are YYYY-MM or YYYY-MM-DD_DriverName — the fixed-width date
@@ -24,15 +39,11 @@ function looksLikeRealInspection(inspectionData) {
 }
 
 async function findTrucksFolderId() {
-  const rootId = await findFolder(UPLOAD_ROOT_FOLDER_NAME);
-  if (!rootId) {
-    throw new Error(
-      `Could not find the "${UPLOAD_ROOT_FOLDER_NAME}" folder in Drive — check that this Google account has been shared view access to it.`
-    );
-  }
-  const trucksFolderId = await findFolder(TRUCKS_FOLDER_NAME, rootId);
+  const trucksFolderId = await findFolder(TRUCKS_FOLDER_NAME, UPLOAD_ROOT_FOLDER_ID);
   if (!trucksFolderId) {
-    throw new Error(`Could not find the "${TRUCKS_FOLDER_NAME}" folder inside "${UPLOAD_ROOT_FOLDER_NAME}".`);
+    throw new Error(
+      `Could not find the "${TRUCKS_FOLDER_NAME}" folder inside the OneTrip Uploads root — check that this Google account has been shared view access to it (folder ID ${UPLOAD_ROOT_FOLDER_ID}).`
+    );
   }
   return trucksFolderId;
 }
