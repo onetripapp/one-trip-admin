@@ -195,7 +195,7 @@ function renderFailedItemsSummary(failedItems) {
   const list = el('div', { class: 'fail-summary-list' });
   for (const item of failedItems) {
     const hasValue = item.value !== null && item.value !== undefined && item.value !== '';
-    const valueText = hasValue ? ` (${item.value}${item.unit || ''})` : '';
+    const valueText = hasValue ? ` (${formatValueWithUnit(item.value, item.unit)})` : '';
     list.appendChild(
       el('div', { class: 'fail-summary-row' }, [
         el('span', { class: 'fail-summary-station' }, `Station ${item.stationId} — ${item.zoneName}`),
@@ -244,7 +244,7 @@ function renderSubItemDetail(subItem) {
   // value gets the same treatment, not just Station 11 — tread depth, PSI,
   // and the DOT-number text value all carry a value worth showing too.
   const hasValue = subItem.value !== null && subItem.value !== undefined && subItem.value !== '';
-  const valueText = hasValue ? `: ${subItem.value}${subItem.unit || ''}` : '';
+  const valueText = hasValue ? `: ${formatValueWithUnit(subItem.value, subItem.unit)}` : '';
 
   row.appendChild(el('span', { class: 'subitem-detail-label' }, `${subItem.label}${valueText}`));
   row.appendChild(
@@ -324,6 +324,17 @@ function formatDate(dateStr) {
   if (!dateStr) return '—';
   const [y, m, d] = dateStr.split('-');
   return `${m}/${d}/${y}`;
+}
+
+// Same rule onetrip-driver's own formatValueWithUnit uses (js/state.js) —
+// "40 sec"/"120 psi" read better with a space, but a symbol-led unit like
+// the tread-depth `/32"` reads better without one ("4/32""). Matching it
+// here keeps a value's on-screen formatting identical to how the same
+// number was already written in the source app and in inspection-
+// summary.txt, rather than introducing a second, slightly different style.
+function formatValueWithUnit(value, unit) {
+  if (!unit) return String(value);
+  return /^[a-zA-Z]/.test(unit) ? `${value} ${unit}` : `${value}${unit}`;
 }
 
 function formatCertifiedAt(isoString) {
