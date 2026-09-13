@@ -175,6 +175,17 @@ function renderInspectionDetail() {
     `${inspectionData.driverName} — certified ${formatCertifiedAt(inspectionData.certifiedAt)}`
   );
 
+  // "Defects Found" means still-open defects, not the raw historical
+  // failedItems count — onetrip-mechanic can resolve a failed sub-item
+  // since this inspection was certified, and a fully-repaired truck should
+  // read as caught-up here too, consistent with the same still-open count
+  // the Truck List and Inspection History screens now use (see
+  // countUnresolvedFailures in data.js). The full historical list — open
+  // AND resolved — still renders below in renderFailedItemsSummary; this
+  // stat is deliberately just the at-a-glance "is there still something to
+  // do" number.
+  const openDefectCount = countUnresolvedFailures(inspectionData);
+
   const statsRow = el('div', { class: 'detail-stats-row' }, [
     el('div', { class: 'detail-stat' }, [
       el('span', { class: 'detail-stat-value' }, `${summary.done ?? 0} / ${summary.total ?? 0}`),
@@ -183,8 +194,8 @@ function renderInspectionDetail() {
     el('div', { class: 'detail-stat' }, [
       el(
         'span',
-        { class: `detail-stat-value${failedItems.length > 0 ? ' detail-stat-value-defect' : ''}` },
-        String(failedItems.length)
+        { class: `detail-stat-value${openDefectCount > 0 ? ' detail-stat-value-defect' : ''}` },
+        String(openDefectCount)
       ),
       el('span', { class: 'detail-stat-label' }, 'Defects Found'),
     ]),
@@ -201,7 +212,7 @@ function renderInspectionDetail() {
   // own defect list — nobody should have to scroll a 20+ station breakdown
   // to find out what actually failed.
   if (failedItems.length > 0) {
-    sections.push(renderFailedItemsSummary(failedItems));
+    sections.push(renderFailedItemsSummary(failedItems, inspectionData));
   } else {
     sections.push(el('p', { class: 'detail-clean-banner' }, `No defects found — ${summary.done ?? 0}/${summary.total ?? 0} passed`));
   }
@@ -213,23 +224,55 @@ function renderInspectionDetail() {
   return el('div', { class: 'truck-list-screen' }, sections);
 }
 
-function renderFailedItemsSummary(failedItems) {
-  const wrap = el('div', { class: 'fail-summary' });
-  wrap.appendChild(el('h2', { class: 'fail-summary-title' }, `${failedItems.length} Item${failedItems.length === 1 ? '' : 's'} Flagged`));
+// `failedItems` is the driver app's own snapshot from certification time —
+// preserved and shown in full here regardless of what's since been
+// resolved (the point is a complete history, not just "what's still
+// wrong"). Each entry is checked against its live `stations[].subItems[]`
+// counterpart (via findResolutionForFailedItem in data.js) to see whether
+// onetrip-mechanic has since certified it fixed.
+function renderFailedItemsSummary(failedItems, inspectionData) {
+  const rows = failedItems.map((item) => ({ item, resolution: findResolutionForFailedItem(inspectionData, item) }));
+  const openCount = rows.filter((r) => !r.resolution).length;
+  const allResolved = openCount === 0;
+
+  const wrap = el('div', { class: `fail-summary${allResolved ? ' fail-summary-all-resolved' : ''}` });
+
+  let heading;
+  if (allResolved) {
+    heading = `${failedItems.length} Item${failedItems.length === 1 ? '' : 's'} Flagged — All Resolved`;
+  } else if (openCount === failedItems.length) {
+    heading = `${failedItems.length} Item${failedItems.length === 1 ? '' : 's'} Flagged`;
+  } else {
+    heading = `${openCount} of ${failedItems.length} Flagged Item${failedItems.length === 1 ? '' : 's'} Still Open`;
+  }
+  wrap.appendChild(el('h2', { class: 'fail-summary-title' }, heading));
 
   const list = el('div', { class: 'fail-summary-list' });
-  for (const item of failedItems) {
+  for (const { item, resolution } of rows) {
     const hasValue = item.value !== null && item.value !== undefined && item.value !== '';
     const valueText = hasValue ? ` (${formatValueWithUnit(item.value, item.unit)})` : '';
-    list.appendChild(
-      el('div', { class: 'fail-summary-row' }, [
-        el('span', { class: 'fail-summary-station' }, `Station ${item.stationId} — ${item.zoneName}`),
-        el('span', { class: 'fail-summary-label' }, `${item.label}${valueText}`),
-      ])
-    );
+    const row = el('div', { class: `fail-summary-row${resolution ? ' fail-summary-row-resolved' : ''}` }, [
+      el('span', { class: 'fail-summary-station' }, `Station ${item.stationId} — ${item.zoneName}`),
+      el('span', { class: 'fail-summary-label' }, `${item.label}${valueText}`),
+    ]);
+    if (resolution) row.appendChild(renderResolutionNote(resolution));
+    list.appendChild(row);
   }
   wrap.appendChild(list);
   return wrap;
+}
+
+// Shared by both the top-of-page fail-summary and the full per-station
+// breakdown below — same resolution object shape either way (see
+// countUnresolvedFailures/findResolutionForFailedItem's own comments in
+// data.js for where it comes from).
+function renderResolutionNote(resolution) {
+  const detailParts = [`Fixed by ${resolution.fixedBy || 'unknown'} on ${formatDate(resolution.fixedDate)}`];
+  if (resolution.repairNotes) detailParts.push(resolution.repairNotes);
+  return el('div', { class: 'resolution-note' }, [
+    el('span', { class: 'status-badge status-clean' }, 'RESOLVED'),
+    el('span', { class: 'resolution-note-text' }, detailParts.join(' — ')),
+  ]);
 }
 
 function renderZoneSection(group, fileIdByName) {
@@ -262,7 +305,8 @@ const SUBITEM_STATUS_BADGE_CLASS = { pass: 'status-clean', fail: 'status-defect'
 
 function renderSubItemDetail(subItem) {
   const isFail = subItem.status === 'fail';
-  const row = el('div', { class: `subitem-detail-row${isFail ? ' subitem-detail-fail' : ''}` });
+  const isResolved = isFail && !!subItem.resolution;
+  const rowModifierClass = isResolved ? 'subitem-detail-resolved' : isFail ? 'subitem-detail-fail' : '';
 
   // Station 11's air-brake readings are the clearest case (the number IS
   // the finding — "40 sec", "130 psi"), but any sub-item with a recorded
@@ -271,16 +315,16 @@ function renderSubItemDetail(subItem) {
   const hasValue = subItem.value !== null && subItem.value !== undefined && subItem.value !== '';
   const valueText = hasValue ? `: ${formatValueWithUnit(subItem.value, subItem.unit)}` : '';
 
-  row.appendChild(el('span', { class: 'subitem-detail-label' }, `${subItem.label}${valueText}`));
-  row.appendChild(
-    el(
-      'span',
-      { class: `status-badge ${SUBITEM_STATUS_BADGE_CLASS[subItem.status] || 'status-na'}` },
-      subItem.status ? subItem.status.toUpperCase() : 'N/R'
-    )
-  );
+  const badgeClass = isResolved ? 'status-clean' : SUBITEM_STATUS_BADGE_CLASS[subItem.status] || 'status-na';
+  const badgeText = isResolved ? 'RESOLVED' : subItem.status ? subItem.status.toUpperCase() : 'N/R';
 
-  return row;
+  const main = el('div', { class: 'subitem-detail-main' }, [
+    el('span', { class: 'subitem-detail-label' }, `${subItem.label}${valueText}`),
+    el('span', { class: `status-badge ${badgeClass}` }, badgeText),
+  ]);
+
+  const children = isResolved ? [main, renderResolutionNote(subItem.resolution)] : [main];
+  return el('div', { class: `subitem-detail-row${rowModifierClass ? ' ' + rowModifierClass : ''}` }, children);
 }
 
 // Looked up synchronously (fileIdByName came from one listFilesInFolder

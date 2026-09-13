@@ -355,11 +355,28 @@ button {
   margin: var(--space-4) 0;
 }
 
+/* Once every flagged item in this inspection has a resolution, the whole
+   box drops the urgent red framing for the calmer clean/resolved tone —
+   there's no longer an active problem here, even though the history below
+   still shows what was originally flagged (see onetrip-mechanic's
+   resolution write-back and PROGRESS.md for why this app needs to know
+   about it at all). A still-open mix keeps the red framing; only
+   .fail-summary-row-resolved below distinguishes the individual resolved
+   rows within it. */
+.fail-summary-all-resolved {
+  background: var(--status-clean-bg);
+  border-color: var(--status-clean-text);
+}
+
 .fail-summary-title {
   font-family: var(--font-heading);
   font-size: 17px;
   color: var(--status-defect-text);
   margin: 0 0 var(--space-3);
+}
+
+.fail-summary-all-resolved .fail-summary-title {
+  color: var(--status-clean-text);
 }
 
 .fail-summary-list {
@@ -372,6 +389,15 @@ button {
   background: var(--bg-surface);
   border-radius: var(--radius);
   padding: var(--space-2) var(--space-3);
+}
+
+/* A resolved row within an otherwise still-open fail-summary list (or
+   within an all-resolved one) — muted/green left border instead of the
+   plain surface background, so a resolved item doesn't read as identical
+   to a still-open one even while sitting in the same list. */
+.fail-summary-row-resolved {
+  background: var(--bg-surface-raised);
+  border-left: 3px solid var(--status-clean-text);
 }
 
 .fail-summary-station {
@@ -387,6 +413,26 @@ button {
 .fail-summary-label {
   display: block;
   font-size: 14px;
+}
+
+/* Shared by both the top-of-page fail-summary rows and the full per-station
+   breakdown below — a mechanic's certification details, wherever a
+   resolved item is shown. */
+.resolution-note {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.resolution-note-text {
+  flex: 1;
+  min-width: 0;
 }
 
 .zone-section {
@@ -426,12 +472,21 @@ button {
 
 .subitem-detail-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
+  flex-direction: column;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius);
   background: var(--bg-surface-raised);
+}
+
+/* The label+badge line — was the whole of .subitem-detail-row before a
+   resolved item needed a second line (.resolution-note) below it; pulled
+   into its own class so a plain pass/fail/n-a row (no note) still renders
+   as a single line exactly as before. */
+.subitem-detail-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
 }
 
 .subitem-detail-label {
@@ -444,6 +499,14 @@ button {
 .subitem-detail-fail {
   background: var(--status-defect-bg);
   border-left: 3px solid var(--status-defect-text);
+}
+
+/* A fail that's since been certified fixed (see onetrip-mechanic) — muted
+   green instead of urgent red, since this isn't an active problem anymore,
+   but still visually distinct from a plain, never-failed pass/n-a row. */
+.subitem-detail-resolved {
+  background: var(--status-clean-bg);
+  border-left: 3px solid var(--status-clean-text);
 }
 
 .status-na {

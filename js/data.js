@@ -38,6 +38,42 @@ function looksLikeRealInspection(inspectionData) {
   return !!(inspectionData && inspectionData.date && inspectionData.driverName && inspectionData.certifiedAt);
 }
 
+// onetrip-mechanic (the mechanic portal) now writes a `resolution` object
+// onto a failed sub-item once a mechanic certifies it fixed — confirmed
+// against that repo's own js/data.js (certifyDefectFixed): it lives at
+// stations[stationId].subItems[].resolution, never on `failedItems` (that
+// flat array is a snapshot the driver app writes once at certification and
+// onetrip-mechanic never touches). So `failedItems.length` alone can no
+// longer answer "does this truck currently have an open defect" — a fully
+// resolved truck would still show every one of its old failures there
+// forever. This walks `stations` directly (the same source of truth
+// onetrip-mechanic itself reads) to count only sub-items that are still
+// failing AND unresolved.
+function countUnresolvedFailures(inspectionData) {
+  const stations = inspectionData.stations || {};
+  let count = 0;
+  for (const station of Object.values(stations)) {
+    for (const subItem of station.subItems || []) {
+      if (subItem.status === 'fail' && !subItem.resolution) count++;
+    }
+  }
+  return count;
+}
+
+// `failedItems` entries (from the driver app's getAllFailedItems snapshot)
+// don't carry a sub-item's own stable id — only stationId + label — so
+// this is how the Inspection Detail screen matches one of those entries
+// back to its live `stations[stationId].subItems[]` counterpart to check
+// for a resolution. Labels are unique within a single station's sub-item
+// list (confirmed against onetrip-driver/js/data.js's own station
+// definitions), so stationId+label is a reliable enough match.
+function findResolutionForFailedItem(inspectionData, failedItem) {
+  const station = inspectionData.stations && inspectionData.stations[failedItem.stationId];
+  if (!station) return null;
+  const subItem = (station.subItems || []).find((si) => si.label === failedItem.label);
+  return (subItem && subItem.resolution) || null;
+}
+
 // Thrown specifically when the signed-in Google account can't see the
 // Trucks folder at all — the one, well-understood case this app can
 // confidently call "you don't have access" rather than "something broke."
@@ -109,7 +145,7 @@ async function loadTruckListSummaries() {
     const result = await loadMostRecentInspectionForTruck(truckFolder.id);
     if (!result) continue;
     const { inspectionData } = result;
-    const failedCount = Array.isArray(inspectionData.failedItems) ? inspectionData.failedItems.length : 0;
+    const failedCount = countUnresolvedFailures(inspectionData);
     summaries.push({
       truckNumber: inspectionData.truckNumber || truckFolder.name,
       date: inspectionData.date,
@@ -169,7 +205,7 @@ async function loadInspectionHistoryForTruck(truckNumber) {
         certifiedAt: inspectionData.certifiedAt,
         doneCount: inspectionData.summary ? inspectionData.summary.done : 0,
         totalCount: inspectionData.summary ? inspectionData.summary.total : 0,
-        failedCount: Array.isArray(inspectionData.failedItems) ? inspectionData.failedItems.length : 0,
+        failedCount: countUnresolvedFailures(inspectionData),
         folderId: dayFolder.id,
       });
     }
